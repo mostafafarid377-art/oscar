@@ -1,3 +1,4 @@
+import { asset } from '@/utils/asset';
 import {
   createContext,
   useCallback,
@@ -86,9 +87,9 @@ const AppContext = createContext<AppContextValue | null>(null);
 const uid = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 
 const FALLBACK_IMAGES = [
-  '/images/car-elantra.jpg',
-  '/images/car-corolla.jpg',
-  '/images/car-sportage.jpg',
+  asset('/images/car-elantra.jpg'),
+  asset('/images/car-corolla.jpg'),
+  asset('/images/car-sportage.jpg'),
 ];
 
 export function AppProvider({ children }: { children: ReactNode }) {

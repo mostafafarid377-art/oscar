@@ -1,3 +1,4 @@
+import { asset } from '@/utils/asset';
 import type {
   AppNotification,
   ChatThread,
@@ -25,7 +26,7 @@ export const DEMO_VEHICLES: Vehicle[] = [
     color: 'Polar White',
     vin: 'KMHD141CAGT204871',
     mileage: 128450,
-    image: '/images/car-elantra.jpg',
+    image: asset('/images/car-elantra.jpg'),
     fuelType: 'petrol',
     transmission: 'automatic',
     drivetrain: 'fwd',
@@ -52,7 +53,7 @@ export const DEMO_VEHICLES: Vehicle[] = [
     color: 'Silver Metallic',
     vin: 'JTDBR32E420118834',
     mileage: 41200,
-    image: '/images/car-corolla.jpg',
+    image: asset('/images/car-corolla.jpg'),
     fuelType: 'petrol',
     transmission: 'cvt',
     drivetrain: 'fwd',
@@ -79,7 +80,7 @@ export const DEMO_VEHICLES: Vehicle[] = [
     color: 'Gravity Grey',
     vin: 'KNAPM81ABM7729410',
     mileage: 86500,
-    image: '/images/car-sportage.jpg',
+    image: asset('/images/car-sportage.jpg'),
     fuelType: 'petrol',
     transmission: 'automatic',
     drivetrain: 'awd',
