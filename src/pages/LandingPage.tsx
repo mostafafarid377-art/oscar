@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { asset } from '@/utils/asset';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowRight,
@@ -165,7 +166,7 @@ export default function LandingPage() {
               <div className="absolute -inset-x-6 bottom-6 top-16 -z-10 rounded-[3rem] bg-lime/10 blur-3xl" aria-hidden="true" />
               <div className="overflow-hidden rounded-3xl border border-line bg-ink-900 shadow-card">
                 <img
-                  src="/images/hero-car.jpg"
+                  src={asset("/images/hero-car.jpg")}
                   alt={t('landing.hero.title')}
                   className="aspect-[16/9] w-full object-cover"
                   width={1376}

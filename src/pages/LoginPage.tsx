@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { asset } from '@/utils/asset';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
@@ -134,7 +135,7 @@ export default function LoginPage() {
 
             <div className="mt-10 overflow-hidden rounded-2xl border border-line bg-ink-900">
               <img
-                src="/images/hero-car.jpg"
+                src={asset("/images/hero-car.jpg")}
                 alt=""
                 className="aspect-[16/9] w-full object-cover opacity-90"
                 loading="lazy"

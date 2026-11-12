@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BookOpenCheck, ChevronsUpDown, LogOut, ShieldCheck, Sparkles } from 'lucide-react';
 import { useApp } from '@/lib/store';
 import { cn } from '@/utils/cn';
+import { asset } from '@/utils/asset';
 import { NAV_ITEMS } from './navigation';
 import { Logo } from './Logo';
 import { DemoBadge } from '@/components/ui';
@@ -29,7 +30,7 @@ export function Sidebar() {
         </div>
         <Link to="/app/garage" className="flex items-center gap-2.5 rounded-lg transition hover:opacity-90">
           <img
-            src={activeVehicle?.image ?? '/images/car-elantra.jpg'}
+            src={activeVehicle?.image ?? asset('/images/car-elantra.jpg')}
             alt=""
             className="h-9 w-12 rounded-md border border-line object-cover"
             loading="lazy"

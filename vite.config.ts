@@ -2,7 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
+// GitHub Pages serves project sites from /<repo>/, so asset URLs need that
+// prefix. `VITE_BASE` lets the deploy workflow inject it while local dev and
+// the Arena preview keep serving from the domain root.
 export default defineConfig({
+  base: process.env.VITE_BASE ?? '/',
   plugins: [react()],
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
