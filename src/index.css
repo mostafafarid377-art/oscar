@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --surface: 9 11 15;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 text-text-primary antialiased;
+    overflow-x: hidden;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+  }
+
+  /* Arabic typography: the Arabic face handles both scripts legibly, and
+     uppercase tracking labels read badly in Arabic so they reset. */
+  html[dir='rtl'] body,
+  html[dir='rtl'] button,
+  html[dir='rtl'] input,
+  html[dir='rtl'] select,
+  html[dir='rtl'] textarea {
+    @apply font-arabic;
+    letter-spacing: 0;
+  }
+
+  html[dir='rtl'] .stat-label,
+  html[dir='rtl'] .label {
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 11px;
+  }
+
+  html[dir='rtl'] .tabular-nums {
+    font-variant-numeric: normal;
+  }
+
+  html[dir='rtl'] {
+    --tracking-tight: 0;
+  }
+
+  html[dir='rtl'] .rtl-flip {
+    transform: scaleX(-1);
+  }
+
+  ::selection {
+    @apply bg-lime/30 text-white;
+  }
+
+  *:focus-visible {
+    outline: 2px solid #c6ff3d;
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-2xl border border-line bg-ink-800;
+  }
+
+  .glass {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+  }
+
+  /* Grid/flex children default to min-width:auto, which lets long content push
+     the layout wider than the viewport. Prevent horizontal overflow globally. */
+  .grid > *,
+  .flex > * {
+    min-width: 0;
+  }
+
+  .hairline {
+    @apply border-b border-line/70;
+  }
+
+  .stat-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.14em] text-text-secondary;
+  }
+
+  .prose-muted {
+    @apply text-sm leading-relaxed text-text-secondary;
+  }
+
+  .card-interactive {
+    @apply transition duration-300 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-card;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-white/[0.03] px-3 py-1 text-xs font-medium text-text-secondary;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-line bg-ink-900 px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary/60 transition focus:border-lime/60 focus:outline-none focus:ring-2 focus:ring-lime/20;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-text-secondary;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #2b323d transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-ink-700;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Subtle section grid used on the marketing page */
+.grid-backdrop {
+  background-image:
+    linear-gradient(to right, rgba(43, 50, 61, 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(43, 50, 61, 0.35) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
