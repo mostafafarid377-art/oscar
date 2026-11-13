@@ -37,12 +37,12 @@ jobs:
           npm run typecheck
           npm test
 
-      - name: Build for the project subpath
-        # GitHub Pages project sites live at /<repo>/, so the base must match.
+      -       - name: Build for the project subpath
         run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
-
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - name: Add SPA fallback
         # GitHub Pages has no rewrite rules. Serving index.html as 404.html lets
         # deep links such as /oscar/app/carproof render instead of hard 404ing.
