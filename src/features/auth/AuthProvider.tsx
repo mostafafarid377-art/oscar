@@ -182,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         options: {
           data: { full_name: fullName.trim() },
-          emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}#/login`,
+          emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}login`,
         },
       });
       if (error) return { ok: false, errorKey: mapAuthError(error.message) };
