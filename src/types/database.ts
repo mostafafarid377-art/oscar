@@ -90,6 +90,7 @@ export type Database = {
     Functions: {
       is_vehicle_owner: { Args: { p_vehicle_id: string }; Returns: boolean };
       is_vehicle_member: { Args: { p_vehicle_id: string }; Returns: boolean };
+      set_primary_vehicle: { Args: { p_vehicle_id: string }; Returns: undefined };
     };
     Enums: { vehicle_member_role: VehicleMemberRole };
     CompositeTypes: Record<string, never>;

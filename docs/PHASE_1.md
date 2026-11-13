@@ -15,7 +15,8 @@ Phase 0 is unchanged visually. This document covers the backend work only.
 | `supabase/migrations/20261112000003_vehicles.sql` | `vehicles` table, indexes, primary-vehicle partial unique index, ownership-guard trigger |
 | `supabase/migrations/20261112000004_vehicle_members.sql` | `vehicle_members`, role enum, ownership/membership helper functions, escalation guard |
 | `supabase/migrations/20261112000005_rls_policies.sql` | RLS enablement + all policies + column-level grants |
-| `supabase/tests/rls_security_test.sql` | 15-assertion RLS suite using two real users |
+| `supabase/migrations/20261113000001_atomic_primary_vehicle.sql` | Transactional, owner-authorized primary vehicle promotion RPC |
+| `supabase/tests/rls_security_test.sql` | 20-assertion RLS suite using two real users |
 | `src/lib/supabase/client.ts` | Supabase client, config reader, service-role-key guard |
 | `src/lib/supabase/mappers.ts` | Row ↔ domain mapping |
 | `src/lib/dataSeparation.ts` | Pure demo/live separation rules (unit tested) |
@@ -160,16 +161,12 @@ Sample vehicles are never uploaded to a real account.
 ## 7. Known issues
 
 1. **No live verification.** No credentials in this environment; see above.
-2. **Setting the primary vehicle is two statements.** PostgREST cannot wrap
-   them in one transaction. A failure between them is rolled back best-effort
-   in `setPrimaryVehicle`. A `SECURITY DEFINER` RPC doing both in one
-   transaction would be strictly better.
-3. **Vehicle photos are chosen from three bundled images**, not uploaded.
+2. **Vehicle photos are chosen from three bundled images**, not uploaded.
    `photo_url` exists in the schema for a future Storage bucket.
-4. **No sharing UI.** `vehicle_members` and its policies exist and are tested,
+3. **No sharing UI.** `vehicle_members` and its policies exist and are tested,
    but nothing in the interface exposes them — per the brief.
-5. **Profile fields beyond `full_name`** (phone, city) remain local-only; they
+4. **Profile fields beyond `full_name`** (phone, city) remain local-only; they
    are not columns in the schema.
-6. **Recovery redirect assumes hash-free routing.** `detectSessionInUrl` is on,
+5. **Recovery redirect assumes hash-free routing.** `detectSessionInUrl` is on,
    so the recovery token is consumed on load; the `?mode=recovery` marker then
    decides which screen to show.

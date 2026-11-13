@@ -220,16 +220,10 @@ feature are in [`docs/PHASE_1.md`](docs/PHASE_1.md).
 
 ---
 
-## Preparing for Phase 1 (Supabase)
+## Supabase backend (Phase 1)
 
-The seam already exists:
-
-- `src/lib/supabase.ts` reads `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` and reports
-  `IS_BACKEND_CONNECTED = false`.
-- `.env.example` documents the two variables.
-- All reads/writes funnel through `src/lib/store.tsx`, so replacing `localStorage` with
-  Supabase queries is a contained change (vehicles, records, documents, notifications,
-  chats, profile, settings).
-- `src/types/index.ts` already models the rows you would create.
-
-No secret is committed, and nothing is deployed automatically.
+Supabase Auth and the vehicle garage are implemented behind authenticated routes,
+with row-level security, demo/live data separation, and a transactional RPC for
+primary-vehicle changes. Configure credentials and apply the migrations using the
+instructions in [`docs/PHASE_1.md`](docs/PHASE_1.md). No secret is committed, and
+nothing is deployed automatically.
