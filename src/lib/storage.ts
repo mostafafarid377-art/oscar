@@ -42,4 +42,6 @@ export const STORAGE_KEYS = {
   chats: 'caros.demo.chats',
   session: 'caros.demo.session',
   primaryVehicle: 'caros.demo.primaryVehicle',
+  /** 'live' = Supabase, 'demo' = local sample data. Never mixed. */
+  dataSource: 'caros.dataSource',
 } as const;

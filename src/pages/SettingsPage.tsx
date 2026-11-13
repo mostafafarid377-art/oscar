@@ -24,6 +24,7 @@ import { Avatar, Badge, Button, Card, CardHeader, DemoBadge, Input, Modal, Selec
 import { PageHeader } from '@/components/layout/PageHeader';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { useApp } from '@/lib/store';
+import { useAuth } from '@/features/auth/AuthProvider';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useToast } from '@/hooks/useToast';
 import { formatDate } from '@/utils/format';
@@ -57,8 +58,10 @@ export default function SettingsPage() {
     documents,
   } = useApp();
   const { toast } = useToast();
+  const { profile: remoteProfile, updateProfile: updateRemoteProfile, backendConnected } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const {
     register,
@@ -67,7 +70,7 @@ export default function SettingsPage() {
   } = useForm<ProfileInput, unknown, ProfileOutput>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: profile.name,
+      name: remoteProfile?.full_name ?? profile.name,
       email: profile.email,
       phone: profile.phone,
       city: profile.city,
@@ -75,7 +78,18 @@ export default function SettingsPage() {
   });
 
   const onSaveProfile = async (values: ProfileOutput) => {
-    await new Promise((r) => setTimeout(r, 350));
+    setProfileError(null);
+
+    // Live session → persist the real profile row.
+    if (backendConnected && remoteProfile) {
+      const result = await updateRemoteProfile({ full_name: values.name });
+      if (!result.ok) {
+        setProfileError(result.errorKey ? t(result.errorKey) : t('common.error'));
+        return;
+      }
+    }
+
+    // Keep the local mirror in sync so the header updates immediately.
     updateProfile({ ...values, phone: values.phone ?? '', city: values.city ?? '' });
     toast(t('settings.profileSaved'));
   };
@@ -132,6 +146,11 @@ export default function SettingsPage() {
               <Input id="s-phone" label={t('settings.phone')} type="tel" {...register('phone')} />
               <Input id="s-city" label={t('settings.city')} {...register('city')} />
             </div>
+            {profileError ? (
+              <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/[0.07] px-3 py-2.5 text-[11px] leading-relaxed text-red-200">
+                {profileError}
+              </p>
+            ) : null}
             <Button type="submit" size="md" loading={isSubmitting} icon={<Save className="h-4 w-4" aria-hidden="true" />}>
               {t('settings.saveProfile')}
             </Button>
@@ -151,6 +170,10 @@ export default function SettingsPage() {
                   aria-checked={language === opt.value}
                   onClick={() => {
                     changeLanguage(opt.value);
+                    // Mirror the preference into the profile row when signed in.
+                    if (backendConnected && remoteProfile) {
+                      void updateRemoteProfile({ preferred_language: opt.value });
+                    }
                     toast(t('settings.saved'));
                   }}
                   className={cn(

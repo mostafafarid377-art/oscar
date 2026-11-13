@@ -1,15 +1,16 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { asset } from '@/utils/asset';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Info, Loader2, Mail, Lock, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Info, Mail, Lock, UserRound } from 'lucide-react';
 import { Logo } from '@/components/layout/Logo';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { Button, Input, Badge } from '@/components/ui';
 import { useApp } from '@/lib/store';
+import { useAuth } from '@/features/auth/AuthProvider';
 import { useToast } from '@/hooks/useToast';
 import { useLanguage } from '@/hooks/useLanguage';
 import { cn } from '@/utils/cn';
@@ -52,10 +53,43 @@ export default function LoginPage() {
   const { signIn } = useApp();
   const { toast } = useToast();
   const { isRtl } = useLanguage();
+  const {
+    status,
+    backendConnected,
+    signInWithPassword,
+    signUpWithPassword,
+    requestPasswordReset,
+    updatePassword,
+    resendVerificationEmail,
+  } = useAuth();
+
   const [mode, setMode] = useState<Mode>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+
+  // Real-auth UI state
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryDone, setRecoveryDone] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
+  // A Supabase recovery link lands on /login?mode=recovery with a session.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'recovery' && status === 'signed_in') {
+      setRecoveryMode(true);
+    }
+  }, [status]);
+
+  // Already authenticated? Go straight into the app.
+  useEffect(() => {
+    if (status === 'signed_in' && !recoveryMode) {
+      navigate('/app', { replace: true });
+    }
+  }, [status, recoveryMode, navigate]);
 
   const {
     register,
@@ -69,12 +103,41 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (values: FormValues) => {
-    // Simulated demo sign-in: no network request, nothing is stored remotely.
-    await new Promise((resolve) => setTimeout(resolve, 650));
-    signIn();
-    toast(mode === 'login' ? t('auth.successLogin') : t('auth.successRegister'));
+    setAuthError(null);
+
+    // ---- Demo mode: no credentials configured, keep Phase 0 behaviour ----
+    if (!backendConnected) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      signIn();
+      toast(mode === 'login' ? t('auth.successLogin') : t('auth.successRegister'));
+      navigate('/app');
+      return;
+    }
+
+    // ---- Real authentication ----
+    if (mode === 'login') {
+      const result = await signInWithPassword(values.email, values.password);
+      if (!result.ok) {
+        setAuthError(result.errorKey ?? 'auth.errors.generic');
+        return;
+      }
+      toast(t('auth.successLogin'));
+      navigate('/app');
+      return;
+    }
+
+    const result = await signUpWithPassword(values.email, values.password, values.name ?? '');
+    if (!result.ok) {
+      setAuthError(result.errorKey ?? 'auth.errors.generic');
+      return;
+    }
+    if (result.needsEmailConfirmation) {
+      setPendingEmail(values.email);
+      return;
+    }
+    // Confirmation disabled on the project → straight in.
+    toast(t('auth.successRegister'));
     navigate('/app');
-    void values;
   };
 
   const switchMode = (next: Mode) => {
@@ -151,14 +214,18 @@ export default function LoginPage() {
               <h2 className="text-xl font-semibold tracking-tight text-text-primary">
                 {showForgot ? t('auth.forgotTitle') : mode === 'login' ? t('auth.welcomeBack') : t('auth.createTitle')}
               </h2>
-              <Badge tone="lime">{t('common.demoMode')}</Badge>
+              <Badge tone={backendConnected ? 'info' : 'lime'}>
+                {backendConnected ? t('auth.realAuthTitle') : t('common.demoMode')}
+              </Badge>
             </div>
 
             <div className="mb-5 flex items-start gap-2 rounded-xl border border-sky-400/20 bg-sky-400/[0.06] px-3 py-2.5">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden="true" />
               <p className="text-[11px] leading-relaxed text-sky-100/80">
-                <span className="font-semibold text-sky-200">{t('auth.demoTitle')} — </span>
-                {t('auth.demoBody')}
+                <span className="font-semibold text-sky-200">
+                  {backendConnected ? t('auth.realAuthTitle') : t('auth.demoTitle')} —{' '}
+                </span>
+                {backendConnected ? t('auth.realAuthBody') : t('auth.demoBody')}
               </p>
             </div>
 
@@ -167,7 +234,7 @@ export default function LoginPage() {
                 <p className="prose-muted">{t('auth.forgotBody')}</p>
                 {forgotSent ? (
                   <div className="mt-5 rounded-xl border border-lime/25 bg-lime/[0.06] px-4 py-3 text-xs text-lime">
-                    {t('auth.forgotSent')}
+                    {backendConnected ? t('auth.resetLinkSent') : t('auth.forgotSent')}
                   </div>
                 ) : null}
                 <div className="mt-5 space-y-3">
@@ -176,9 +243,23 @@ export default function LoginPage() {
                     label={t('auth.email')}
                     type="email"
                     placeholder={t('auth.emailPlaceholder')}
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
                     leading={<Mail className="h-4 w-4" aria-hidden="true" />}
                   />
-                  <Button fullWidth onClick={() => setForgotSent(true)} type="button">
+                  <Button
+                    fullWidth
+                    type="button"
+                    onClick={async () => {
+                      if (!backendConnected) {
+                        setForgotSent(true);
+                        return;
+                      }
+                      const result = await requestPasswordReset(forgotEmail);
+                      setForgotSent(result.ok);
+                      if (!result.ok) setAuthError(result.errorKey ?? 'auth.errors.generic');
+                    }}
+                  >
                     {t('auth.sendReset')}
                   </Button>
                   <Button
@@ -193,6 +274,81 @@ export default function LoginPage() {
                     {t('common.back')}
                   </Button>
                 </div>
+              </div>
+            ) : recoveryMode ? (
+              /* ---------- Password recovery (Supabase link landed here) ---------- */
+              <div className="space-y-4">
+                {recoveryDone ? (
+                  <div className="rounded-xl border border-lime/25 bg-lime/[0.06] px-4 py-3 text-xs text-lime">
+                    {t('auth.passwordUpdated')}
+                  </div>
+                ) : null}
+                <Input
+                  id="new-password"
+                  label={t('auth.newPassword')}
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder={t('auth.passwordPlaceholder')}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  leading={<Lock className="h-4 w-4" aria-hidden="true" />}
+                />
+                <Button
+                  fullWidth
+                  type="button"
+                  onClick={async () => {
+                    setAuthError(null);
+                    if (newPassword.length < 8) {
+                      setAuthError('auth.passwordShort');
+                      return;
+                    }
+                    const result = await updatePassword(newPassword);
+                    if (!result.ok) {
+                      setAuthError(result.errorKey ?? 'auth.errors.generic');
+                      return;
+                    }
+                    setRecoveryDone(true);
+                    setRecoveryMode(false);
+                    setNewPassword('');
+                  }}
+                >
+                  {t('auth.setNewPassword')}
+                </Button>
+              </div>
+            ) : pendingEmail ? (
+              /* ---------- Awaiting email confirmation ---------- */
+              <div className="space-y-4">
+                <div className="flex items-start gap-2 rounded-xl border border-lime/25 bg-lime/[0.06] px-3.5 py-3">
+                  <Mail className="mt-0.5 h-4 w-4 shrink-0 text-lime" aria-hidden="true" />
+                  <div>
+                    <p className="text-xs font-semibold text-lime">{t('auth.checkEmailTitle')}</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-text-secondary">
+                      {t('auth.checkEmailBody', { email: pendingEmail })}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  fullWidth
+                  variant="secondary"
+                  type="button"
+                  onClick={async () => {
+                    const result = await resendVerificationEmail(pendingEmail);
+                    if (result.ok) toast(t('auth.checkEmailResent'));
+                  }}
+                >
+                  {t('auth.checkEmailResend')}
+                </Button>
+                <Button
+                  fullWidth
+                  variant="ghost"
+                  type="button"
+                  onClick={() => {
+                    setPendingEmail(null);
+                    switchMode('login');
+                  }}
+                >
+                  {t('auth.backToLogin')}
+                </Button>
               </div>
             ) : (
               <>
@@ -301,6 +457,16 @@ export default function LoginPage() {
                     </div>
                   ) : null}
 
+                  {authError ? (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2 rounded-xl border border-red-400/30 bg-red-400/[0.07] px-3 py-2.5 text-[11px] leading-relaxed text-red-200"
+                    >
+                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span>{t(authError)}</span>
+                    </div>
+                  ) : null}
+
                   <Button type="submit" fullWidth size="lg" loading={isSubmitting}>
                     {mode === 'login' ? t('auth.loginButton') : t('auth.registerButton')}
                   </Button>
@@ -344,11 +510,33 @@ export default function LoginPage() {
               </>
             )}
 
-            <div className="mt-6 flex items-center justify-center gap-2 border-t border-line/70 pt-4">
-              <Loader2 className="hidden" aria-hidden="true" />
-              <Link to="/app" className="text-[11px] font-medium text-text-secondary underline-offset-2 hover:text-lime hover:underline">
-                {t('landing.hero.secondaryCta')}
-              </Link>
+            <div className="mt-6 border-t border-line/70 pt-4">
+              {backendConnected ? (
+                // Signed-out visitors can still explore the prototype, but the
+                // entry point is explicit so demo data never looks real.
+                <button
+                  type="button"
+                  onClick={() => {
+                    signIn();
+                    navigate('/app');
+                  }}
+                  className="block w-full text-center text-[11px] font-medium text-text-secondary underline-offset-2 hover:text-lime hover:underline"
+                >
+                  {t('auth.demoModeEntry')}
+                </button>
+              ) : (
+                <Link
+                  to="/app"
+                  className="block text-center text-[11px] font-medium text-text-secondary underline-offset-2 hover:text-lime hover:underline"
+                >
+                  {t('landing.hero.secondaryCta')}
+                </Link>
+              )}
+              {backendConnected ? (
+                <p className="mt-2 text-center text-[10px] leading-relaxed text-text-secondary/70">
+                  {t('auth.demoModeNote')}
+                </p>
+              ) : null}
             </div>
           </div>
         </section>

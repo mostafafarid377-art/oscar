@@ -3,6 +3,7 @@ import { Route, Routes, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import AppLayout from '@/layouts/AppLayout';
 import LandingPage from '@/pages/LandingPage';
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 
 // The marketing page ships in the initial bundle; every in-app screen is
 // loaded on demand so the first paint stays light.
@@ -44,7 +45,14 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/app" element={<AppLayout />}>
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<DashboardPage />} />
             <Route path="garage" element={<GaragePage />} />
             <Route path="garage/:vehicleId" element={<VehicleDetailsPage />} />

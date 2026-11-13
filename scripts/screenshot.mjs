@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 
-const executablePath = process.env.CHROME_PATH || '/tmp/sp/chromium';
+const executablePath = process.env.CHROME_PATH || '/tmp/chromium';
 const browser = await puppeteer.launch({
   args: [
     '--no-sandbox',

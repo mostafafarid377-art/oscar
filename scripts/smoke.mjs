@@ -5,7 +5,7 @@
 import puppeteer from 'puppeteer-core';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:5173';
-const executablePath = process.env.CHROME_PATH || '/tmp/sp/chromium';
+const executablePath = process.env.CHROME_PATH || '/tmp/chromium';
 
 const browser = await puppeteer.launch({
   args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--use-gl=angle', '--use-angle=swiftshader'],

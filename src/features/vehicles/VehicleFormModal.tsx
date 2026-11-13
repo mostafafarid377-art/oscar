@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -36,8 +36,9 @@ export function VehicleFormModal({
   vehicle?: Vehicle;
 }) {
   const { t } = useTranslation();
-  const { addVehicle, updateVehicle, vehicles } = useApp();
+  const { addVehicle, updateVehicle, vehicles, dataSource } = useApp();
   const { toast } = useToast();
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const isEdit = Boolean(vehicle);
 
   const {
@@ -65,6 +66,7 @@ export function VehicleFormModal({
 
   useEffect(() => {
     if (!open) return;
+    setSubmitError(null);
     reset(
       vehicle
         ? {
@@ -99,9 +101,13 @@ export function VehicleFormModal({
   }, [open, vehicle, reset]);
 
   const onSubmit = async (values: FormOutput) => {
-    await new Promise((r) => setTimeout(r, 300));
+    setSubmitError(null);
+    if (dataSource !== 'live') {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    try {
     if (vehicle) {
-      updateVehicle(vehicle.id, {
+      await updateVehicle(vehicle.id, {
         make: values.make,
         model: values.model,
         year: values.year,
@@ -118,7 +124,7 @@ export function VehicleFormModal({
       });
       toast(t('garage.updated'));
     } else {
-      addVehicle({
+      await addVehicle({
         make: values.make,
         model: values.model,
         year: values.year,
@@ -138,6 +144,10 @@ export function VehicleFormModal({
       toast(t('garage.added', { vehicle: `${values.make} ${values.model}` }));
     }
     onClose();
+    } catch (e) {
+      // A policy violation or network fault must reach the user, not the console.
+      setSubmitError(e instanceof Error ? e.message : t('common.error'));
+    }
   };
 
   const fuelOptions = (['petrol', 'diesel', 'hybrid', 'electric'] as const).map((value) => ({
@@ -235,6 +245,12 @@ export function VehicleFormModal({
           <Select id="v-drivetrain" label={t('garage.form.drivetrain')} options={drivetrainOptions} {...register('drivetrain')} />
           <Select id="v-category" label={t('garage.form.category')} options={categoryOptions} {...register('category')} />
         </div>
+
+        {submitError ? (
+          <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/[0.07] px-3 py-2.5 text-[11px] leading-relaxed text-red-200">
+            {submitError}
+          </p>
+        ) : null}
 
         {!isEdit ? (
           <p className="rounded-xl border border-line bg-ink-900/60 px-3 py-2.5 text-[11px] leading-relaxed text-text-secondary">

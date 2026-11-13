@@ -27,6 +27,20 @@ import {
   DEMO_VEHICLES,
 } from '@/data/mockData';
 import { readStorage, removeStorage, STORAGE_KEYS, writeStorage } from './storage';
+import {
+  resolveDataSource,
+  visibleForSource,
+  visibleNotificationsForSource,
+} from './dataSeparation';
+import { useAuth } from '@/features/auth/AuthProvider';
+import { IS_BACKEND_CONNECTED } from '@/lib/supabase';
+import {
+  useCreateVehicle,
+  useDeleteVehicle,
+  useSetPrimaryVehicle,
+  useUpdateVehicle,
+  useVehicles,
+} from '@/features/vehicles/api/useVehicles';
 
 const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
@@ -41,6 +55,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   privacy: { shareWithMechanic: false, analytics: false, storeDocumentsLocally: true },
   vehicles: { defaultReminderKm: 500, mileageUnit: 'km' },
 };
+
+export type DataSource = 'live' | 'demo';
 
 export type NewVehicleInput = Omit<Vehicle, 'id' | 'isPrimary' | 'verification' | 'averageMonthlyKm'> &
   Partial<Pick<Vehicle, 'isPrimary' | 'verification' | 'averageMonthlyKm'>>;
@@ -59,10 +75,17 @@ interface AppContextValue {
   primaryVehicleId: string;
   activeVehicle: Vehicle | undefined;
   isAuthenticated: boolean;
-  setPrimaryVehicle: (id: string) => void;
-  addVehicle: (input: NewVehicleInput) => Vehicle;
-  updateVehicle: (id: string, patch: Partial<Vehicle>) => void;
-  deleteVehicle: (id: string) => void;
+  /** 'live' → Supabase, 'demo' → local sample data. Never mixed. */
+  dataSource: DataSource;
+  /** True when Supabase credentials exist, so live mode is even possible. */
+  liveAvailable: boolean;
+  vehicleLoading: boolean;
+  vehicleError: string | null;
+  setDataSource: (source: DataSource) => void;
+  setPrimaryVehicle: (id: string) => Promise<void> | void;
+  addVehicle: (input: NewVehicleInput) => Promise<Vehicle>;
+  updateVehicle: (id: string, patch: Partial<Vehicle>) => Promise<void> | void;
+  deleteVehicle: (id: string) => Promise<void> | void;
   addRecord: (input: NewRecordInput) => void;
   updateRecord: (id: string, patch: Partial<MaintenanceItem>) => void;
   addDocument: (doc: Omit<VehicleDocument, 'id'>) => void;
@@ -93,7 +116,7 @@ const FALLBACK_IMAGES = [
 ];
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() =>
+  const [demoVehicles, setDemoVehicles] = useState<Vehicle[]>(() =>
     readStorage<Vehicle[]>(STORAGE_KEYS.vehicles, DEMO_VEHICLES),
   );
   const [records, setRecords] = useState<MaintenanceItem[]>(() =>
@@ -126,11 +149,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (stored) return stored;
     return DEMO_VEHICLES.find((v) => v.isPrimary)?.id ?? DEMO_VEHICLES[0]?.id ?? '';
   });
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() =>
+  const [demoAuthenticated, setDemoAuthenticated] = useState<boolean>(() =>
     readStorage<boolean>(STORAGE_KEYS.session, false),
   );
 
-  useEffect(() => writeStorage(STORAGE_KEYS.vehicles, vehicles), [vehicles]);
+  // ---------------------------------------------------------------------
+  // Phase 1 — dual data source
+  // ---------------------------------------------------------------------
+  const auth = useAuth();
+  const liveVehicles = useVehicles();
+  const createVehicleMutation = useCreateVehicle();
+  const updateVehicleMutation = useUpdateVehicle();
+  const deleteVehicleMutation = useDeleteVehicle();
+  const setPrimaryMutation = useSetPrimaryVehicle();
+
+  const liveAvailable = IS_BACKEND_CONNECTED;
+  const isLiveSession = liveAvailable && auth.status === 'signed_in';
+
+  // Default: live whenever a real session exists, otherwise demo.
+  const [dataSourcePreference, setDataSourcePreference] = useState<DataSource>(() =>
+    readStorage<DataSource>(STORAGE_KEYS.dataSource, IS_BACKEND_CONNECTED ? 'live' : 'demo'),
+  );
+
+  const dataSource: DataSource = resolveDataSource({
+    liveAvailable,
+    signedIn: isLiveSession,
+    preference: dataSourcePreference,
+  });
+
+  const setDataSource = useCallback((source: DataSource) => {
+    setDataSourcePreference(source);
+  }, []);
+
+  useEffect(() => {
+    writeStorage(STORAGE_KEYS.dataSource, dataSourcePreference);
+  }, [dataSourcePreference]);
+
+  // Signed out of a live session → fall back to demo so the screens still work.
+  useEffect(() => {
+    if (!isLiveSession && dataSourcePreference === 'live' && !liveAvailable) {
+      setDataSourcePreference('demo');
+    }
+  }, [isLiveSession, dataSourcePreference, liveAvailable]);
+
+  const liveVehicleIds = useMemo(
+    () => new Set(liveVehicles.vehicles.map((v) => v.id)),
+    [liveVehicles.vehicles],
+  );
+
+  useEffect(() => writeStorage(STORAGE_KEYS.vehicles, demoVehicles), [demoVehicles]);
   useEffect(() => writeStorage(STORAGE_KEYS.records, records), [records]);
   useEffect(() => writeStorage(STORAGE_KEYS.documents, documents), [documents]);
   useEffect(() => writeStorage(STORAGE_KEYS.notifications, notifications), [notifications]);
@@ -138,46 +205,106 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => writeStorage(STORAGE_KEYS.profile, profile), [profile]);
   useEffect(() => writeStorage(STORAGE_KEYS.settings, settings), [settings]);
   useEffect(() => writeStorage(STORAGE_KEYS.primaryVehicle, primaryVehicleId), [primaryVehicleId]);
-  useEffect(() => writeStorage(STORAGE_KEYS.session, isAuthenticated), [isAuthenticated]);
+  useEffect(() => writeStorage(STORAGE_KEYS.session, demoAuthenticated), [demoAuthenticated]);
 
-  // Keep the primary id valid if a vehicle gets deleted.
+  // Keep the primary id valid if a demo vehicle gets deleted.
   useEffect(() => {
-    if (vehicles.length === 0) return;
-    if (!vehicles.some((v) => v.id === primaryVehicleId)) {
-      setPrimaryVehicleId(vehicles[0].id);
+    if (demoVehicles.length === 0) return;
+    if (!demoVehicles.some((v) => v.id === primaryVehicleId)) {
+      setPrimaryVehicleId(demoVehicles[0].id);
     }
-  }, [vehicles, primaryVehicleId]);
+  }, [demoVehicles, primaryVehicleId]);
 
-  const setPrimaryVehicle = useCallback((id: string) => {
-    setPrimaryVehicleId(id);
-    setVehicles((prev) => prev.map((v) => ({ ...v, isPrimary: v.id === id })));
-  }, []);
+  const setPrimaryVehicle = useCallback(
+    async (id: string) => {
+      if (dataSource === 'live') {
+        await setPrimaryMutation.mutateAsync(id);
+        return;
+      }
+      setPrimaryVehicleId(id);
+      setDemoVehicles((prev) => prev.map((v) => ({ ...v, isPrimary: v.id === id })));
+    },
+    [dataSource, setPrimaryMutation],
+  );
 
-  const addVehicle = useCallback((input: NewVehicleInput) => {
-    const id = uid('veh');
-    const vehicle: Vehicle = {
-      ...input,
-      id,
-      isPrimary: input.isPrimary ?? false,
-      verification: input.verification ?? 'owner_reported',
-      averageMonthlyKm: input.averageMonthlyKm ?? 1200,
-    };
-    setVehicles((prev) => [...prev, vehicle]);
-    setPrimaryVehicleId((prev) => prev || id);
-    return vehicle;
-  }, []);
+  const addVehicle = useCallback(
+    async (input: NewVehicleInput): Promise<Vehicle> => {
+      if (dataSource === 'live') {
+        const row = await createVehicleMutation.mutateAsync({
+          make: input.make,
+          model: input.model,
+          year: input.year,
+          trim: input.trim,
+          mileage: input.mileage,
+          transmission: input.transmission,
+          fuelType: input.fuelType,
+          licensePlate: input.plate,
+          vin: input.vin,
+        });
+        // Return the persisted shape so callers can use the real UUID.
+        return {
+          ...input,
+          id: row.id,
+          isPrimary: row.is_primary,
+          verification: 'owner_reported',
+          averageMonthlyKm: 0,
+        };
+      }
 
-  const updateVehicle = useCallback((id: string, patch: Partial<Vehicle>) => {
-    setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
-  }, []);
+      const id = uid('veh');
+      const vehicle: Vehicle = {
+        ...input,
+        id,
+        isPrimary: input.isPrimary ?? false,
+        verification: input.verification ?? 'owner_reported',
+        averageMonthlyKm: input.averageMonthlyKm ?? 1200,
+      };
+      setDemoVehicles((prev) => [...prev, vehicle]);
+      setPrimaryVehicleId((prev) => prev || id);
+      return vehicle;
+    },
+    [dataSource, createVehicleMutation],
+  );
 
-  const deleteVehicle = useCallback((id: string) => {
-    setVehicles((prev) => prev.filter((v) => v.id !== id));
-    setRecords((prev) => prev.filter((r) => r.vehicleId !== id));
-    setDocuments((prev) => prev.filter((d) => d.vehicleId !== id));
-    setChats((prev) => prev.filter((c) => c.vehicleId !== id));
-    setNotifications((prev) => prev.filter((n) => n.vehicleId !== id));
-  }, []);
+  const updateVehicle = useCallback(
+    async (id: string, patch: Partial<Vehicle>) => {
+      if (dataSource === 'live') {
+        // Only send columns a real vehicle actually has.
+        await updateVehicleMutation.mutateAsync({
+          id,
+          input: {
+            make: patch.make ?? '',
+            model: patch.model ?? '',
+            year: patch.year ?? new Date().getFullYear(),
+            trim: patch.trim,
+            mileage: patch.mileage ?? 0,
+            transmission: patch.transmission,
+            fuelType: patch.fuelType,
+            licensePlate: patch.plate,
+            vin: patch.vin,
+          },
+        });
+        return;
+      }
+      setDemoVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+    },
+    [dataSource, updateVehicleMutation],
+  );
+
+  const deleteVehicle = useCallback(
+    async (id: string) => {
+      if (dataSource === 'live') {
+        await deleteVehicleMutation.mutateAsync(id);
+        return;
+      }
+      setDemoVehicles((prev) => prev.filter((v) => v.id !== id));
+      setRecords((prev) => prev.filter((r) => r.vehicleId !== id));
+      setDocuments((prev) => prev.filter((d) => d.vehicleId !== id));
+      setChats((prev) => prev.filter((c) => c.vehicleId !== id));
+      setNotifications((prev) => prev.filter((n) => n.vehicleId !== id));
+    },
+    [dataSource, deleteVehicleMutation],
+  );
 
   const addRecord = useCallback((input: NewRecordInput) => {
     setRecords((prev) => [
@@ -250,11 +377,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const signIn = useCallback(() => setIsAuthenticated(true), []);
-  const signOut = useCallback(() => setIsAuthenticated(false), []);
+  /** Demo-mode only. Real sign-in goes through useAuth(). */
+  const signIn = useCallback(() => setDemoAuthenticated(true), []);
+
+  const signOut = useCallback(() => {
+    if (isLiveSession) {
+      void auth.signOut();
+    }
+    setDemoAuthenticated(false);
+    setDataSourcePreference('demo');
+  }, [auth, isLiveSession]);
 
   const resetDemoData = useCallback(() => {
-    setVehicles(DEMO_VEHICLES);
+    setDemoVehicles(DEMO_VEHICLES);
     setRecords(DEMO_RECORDS);
     setDocuments(DEMO_DOCUMENTS);
     setNotifications(DEMO_NOTIFICATIONS);
@@ -265,36 +400,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
     Object.values(STORAGE_KEYS).forEach(removeStorage);
   }, []);
 
+  // ---------------------------------------------------------------------
+  // Demo / production separation
+  // ---------------------------------------------------------------------
+  // In live mode a vehicle that came from Supabase has no local records. If we
+  // returned the unfiltered demo arrays, CarProof and Maintenance would happily
+  // show the Elantra's oil changes as if they belonged to a user's brand-new
+  // car. These "visible" arrays only ever contain rows whose vehicle is real.
+  const visibleRecords = useMemo(
+    () => visibleForSource(records, dataSource, liveVehicleIds),
+    [dataSource, records, liveVehicleIds],
+  );
+
+  const visibleDocuments = useMemo(
+    () => visibleForSource(documents, dataSource, liveVehicleIds),
+    [dataSource, documents, liveVehicleIds],
+  );
+
+  const visibleNotifications = useMemo(
+    () => visibleNotificationsForSource(notifications, dataSource, liveVehicleIds),
+    [dataSource, notifications, liveVehicleIds],
+  );
+
   const recordsForVehicle = useCallback(
     (vehicleId: string) =>
-      records
+      visibleRecords
         .filter((r) => r.vehicleId === vehicleId)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [records],
+    [visibleRecords],
   );
 
   const documentsForVehicle = useCallback(
-    (vehicleId: string) => documents.filter((d) => d.vehicleId === vehicleId),
-    [documents],
+    (vehicleId: string) => visibleDocuments.filter((d) => d.vehicleId === vehicleId),
+    [visibleDocuments],
   );
 
-  const activeVehicle = useMemo(
-    () => vehicles.find((v) => v.id === primaryVehicleId) ?? vehicles[0],
-    [vehicles, primaryVehicleId],
+  // The vehicle list itself: live rows in live mode, demo rows otherwise.
+  const vehicles = useMemo<Vehicle[]>(
+    () => (dataSource === 'live' ? liveVehicles.vehicles : demoVehicles),
+    [dataSource, liveVehicles.vehicles, demoVehicles],
   );
+
+  const activeVehicle = useMemo(() => {
+    if (vehicles.length === 0) return undefined;
+    const primary = vehicles.find((v) => v.isPrimary);
+    return primary ?? vehicles.find((v) => v.id === primaryVehicleId) ?? vehicles[0];
+  }, [vehicles, primaryVehicleId]);
 
   const value = useMemo<AppContextValue>(
     () => ({
       vehicles,
-      records,
-      documents,
-      notifications,
+      records: visibleRecords,
+      documents: visibleDocuments,
+      notifications: visibleNotifications,
       chats,
       profile,
       settings,
       primaryVehicleId: activeVehicle?.id ?? '',
       activeVehicle,
-      isAuthenticated,
+      isAuthenticated: isLiveSession || demoAuthenticated,
+      dataSource,
+      liveAvailable,
+      vehicleLoading: liveVehicles.isLoading,
+      vehicleError: liveVehicles.error?.message ?? null,
+      setDataSource,
       setPrimaryVehicle,
       addVehicle,
       updateVehicle,
@@ -319,14 +488,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }),
     [
       vehicles,
-      records,
-      documents,
-      notifications,
+      visibleRecords,
+      visibleDocuments,
+      visibleNotifications,
       chats,
       profile,
       settings,
       activeVehicle,
-      isAuthenticated,
+      isLiveSession,
+      demoAuthenticated,
+      dataSource,
+      liveAvailable,
+      liveVehicles.isLoading,
+      liveVehicles.error,
+      setDataSource,
       setPrimaryVehicle,
       addVehicle,
       updateVehicle,

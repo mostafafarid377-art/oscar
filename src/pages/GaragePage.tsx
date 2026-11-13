@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { CarFront, Plus, Search, X } from 'lucide-react';
-import { Button, EmptyState } from '@/components/ui';
+import { Button, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useApp } from '@/lib/store';
 import { VehicleCard } from '@/features/vehicles/VehicleCard';
@@ -12,7 +12,8 @@ import type { Vehicle } from '@/types';
 
 export default function GaragePage() {
   const { t } = useTranslation();
-  const { vehicles, primaryVehicleId, records } = useApp();
+  const { vehicles, primaryVehicleId, records, vehicleLoading, vehicleError, dataSource } =
+    useApp();
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | undefined>();
@@ -77,7 +78,11 @@ export default function GaragePage() {
         </p>
       </div>
 
-      {vehicles.length === 0 ? (
+      {dataSource === 'live' && vehicleLoading ? (
+        <LoadingState label={t('common.loading')} />
+      ) : dataSource === 'live' && vehicleError ? (
+        <ErrorState title={t('common.error')} body={vehicleError} />
+      ) : vehicles.length === 0 ? (
         <EmptyState
           icon={<CarFront className="h-5 w-5" aria-hidden="true" />}
           title={t('garage.emptyTitle')}
