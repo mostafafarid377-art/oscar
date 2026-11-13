@@ -1,4 +1,4 @@
-# CarOS — Phase 0 prototype
+# CarOS — Phase 1
 
 > **Your car. Its entire story.**
 
@@ -7,9 +7,21 @@ CarOS is a premium, mobile-first automotive web app that combines two products:
 - **CarProof** — a digital vehicle passport: maintenance, repairs, mileage, expenses and documents.
 - **Mechanic AI** — an automotive assistant that reasons from each vehicle's own history.
 
-This repository contains the **Phase 0 frontend prototype** only. There is no backend,
-no authentication, no AI provider and no payment integration. All data is realistic
-**Egyptian demonstration data** (EGP, km, Cairo workshops) held in `localStorage`.
+Phase 0 built the complete frontend prototype. **Phase 1 adds a Supabase backend**:
+real authentication, user profiles, and a vehicle garage backed by Postgres.
+
+The app runs in one of two clearly-labelled modes:
+
+| Mode | When | Data |
+| --- | --- | --- |
+| **Live** | `VITE_SUPABASE_URL` + anon key are set **and** you are signed in | Your real Supabase rows |
+| **Demo** | No credentials, or signed out | Egyptian sample data in `localStorage` |
+
+A banner in the app always states which one is active. The two sets are never
+merged. See [docs/PHASE_1.md](docs/PHASE_1.md) for the backend details.
+
+Mechanic AI, documents, maintenance history, notifications and expenses remain
+demo-only and are labelled as such — see the table further down.
 
 ---
 
@@ -38,6 +50,8 @@ Screenshots of all 11 screens live in [`docs/screenshots`](docs/screenshots).
 | Icons | Lucide React |
 | Forms | React Hook Form + Zod |
 | i18n | i18next + react-i18next (EN/AR, full RTL) |
+| Backend | Supabase (Postgres + Auth) with Row Level Security |
+| Server state | TanStack Query |
 | Tests | Vitest + a Puppeteer smoke suite |
 
 No other runtime dependencies were added.
@@ -173,6 +187,23 @@ The Puppeteer smoke suite (`scripts/smoke.mjs`) walks all 11 routes at 1440px an
 390px, checks every route in Arabic (`dir=rtl`, `lang=ar`, Arabic heading), asserts no
 horizontal overflow, then exercises adding a vehicle and sending a Mechanic AI message.
 Regenerate screenshots with `scripts/screenshot.mjs`.
+
+### Backend (Phase 1)
+
+```bash
+# 1. apply the schema
+supabase link --project-ref <ref> && supabase db push
+#    …or paste supabase/migrations/*.sql into the SQL Editor in order
+
+# 2. configure the client
+cp .env.example .env.local   # then fill in URL + anon key
+
+# 3. verify policies (needs a real project)
+psql "$DATABASE_URL" -f supabase/tests/rls_security_test.sql
+```
+
+Full instructions, the RLS policy rationale and the honest status of each
+feature are in [`docs/PHASE_1.md`](docs/PHASE_1.md).
 
 ### Known issues
 

@@ -207,6 +207,37 @@ const en = {
     terms: 'By continuing you accept the demo terms. No real data is collected.',
     successLogin: 'Signed in (demo session)',
     successRegister: 'Demo account created',
+
+    // ---- Phase 1: real authentication ----
+    restoringSession: 'Restoring your session…',
+    checkEmailTitle: 'Confirm your email',
+    checkEmailBody:
+      'We sent a confirmation link to {{email}}. Open it to activate your account, then log in.',
+    checkEmailResend: 'Resend confirmation email',
+    checkEmailResent: 'Confirmation email sent again.',
+    backToLogin: 'Back to log in',
+    resetLinkSent: 'If that email is registered, a reset link is on its way.',
+    newPassword: 'New password',
+    setNewPassword: 'Set new password',
+    passwordUpdated: 'Password updated. You can log in now.',
+    demoModeEntry: 'Explore the demo instead',
+    demoModeNote:
+      'Demo mode shows sample Egyptian vehicles stored in this browser. It does not create an account.',
+    realAuthTitle: 'Secure sign-in',
+    realAuthBody:
+      'Your account is protected by Supabase Auth. Passwords are never stored by this app.',
+    errors: {
+      invalidCredentials: 'Email or password is incorrect.',
+      emailNotConfirmed: 'Please confirm your email address before logging in.',
+      emailTaken: 'An account with this email already exists.',
+      weakPassword: 'Choose a stronger password (at least 6 characters).',
+      rateLimited: 'Too many attempts. Please wait a moment and try again.',
+      emailInvalid: 'Enter a valid email address.',
+      network: 'Network problem. Check your connection and try again.',
+      notConfigured:
+        'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
+      generic: 'Something went wrong. Please try again.',
+    },
     backHome: 'Back to home',
     feature1: 'Your garage, passport and documents in one place',
     feature2: 'Mechanic AI that reads your service history',
@@ -263,6 +294,7 @@ const en = {
     lastUpdated: 'Updated {{time}}',
   },
   garage: {
+    deleteIrreversible: 'This cannot be undone.',
     title: 'My Garage',
     subtitle: 'Every vehicle you track in CarOS',
     addVehicle: 'Add vehicle',
@@ -849,6 +881,16 @@ const en = {
     resetConfirm: 'Reset demo data?',
     resetBody: 'Your added vehicles, records and documents will be replaced with the original sample set.',
     resetDone: 'Demo data restored',
+  },
+
+  dataSource: {
+    liveTitle: 'Live data',
+    liveBody: 'These vehicles are stored in your Supabase account.',
+    demoTitle: 'Demo data',
+    demoBody:
+      'Sample Egyptian vehicles from this browser. Nothing here is saved to your account.',
+    switchToDemo: 'View demo',
+    switchToLive: 'View my data',
   },
 } as const;
 

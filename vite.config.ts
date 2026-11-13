@@ -23,4 +23,17 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split the heaviest vendor code so the first paint does not pay for
+        // the Supabase client or the form/validation stack.
+        manualChunks: {
+          supabase: ['@supabase/supabase-js', '@tanstack/react-query'],
+          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
+          i18n: ['i18next', 'react-i18next'],
+        },
+      },
+    },
+  },
 });

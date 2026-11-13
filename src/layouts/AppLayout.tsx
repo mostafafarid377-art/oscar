@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sidebar, Topbar, BottomNav } from '@/components/layout';
 import { DemoNotice } from '@/components/layout/DemoNotice';
+import { DataSourceNotice } from '@/components/layout/DataSourceNotice';
 
 export default function AppLayout() {
   const { pathname } = useLocation();
@@ -28,6 +29,7 @@ export default function AppLayout() {
           className="mx-auto w-full max-w-[1200px] flex-1 px-4 pb-28 pt-5 sm:px-6 sm:pt-7 lg:px-8 lg:pb-14"
         >
           <DemoNotice />
+          <DataSourceNotice />
           <Outlet />
         </main>
       </div>
