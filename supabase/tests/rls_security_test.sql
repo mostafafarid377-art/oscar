@@ -65,6 +65,13 @@ values (
   'Hyundai', 'Elantra', 2018, 128450, true, 'KMHD141CAGT204871'
 );
 
+insert into public.vehicles (id, owner_id, make, model, year, mileage, is_primary)
+values (
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  '11111111-1111-1111-1111-111111111111',
+  'Toyota', 'Corolla', 2022, 41200, false
+);
+
 /* ---------------------------------------------------------------------------
    Helpers that simulate a logged-in user by setting the JWT claims that
    auth.uid() reads, then switching to the `authenticated` role.
@@ -202,23 +209,71 @@ select pg_temp.record(
 );
 
 -- ===========================================================================
--- 11. One primary vehicle per owner
+-- 11. Primary vehicle RPC is atomic and restricted to the owner
+-- ===========================================================================
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+select public.set_primary_vehicle('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+select pg_temp.record(
+  '11. owner atomically promotes an owned vehicle',
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb:1',
+  (select id::text || ':' || count(*)::text
+     from public.vehicles
+    where owner_id = '11111111-1111-1111-1111-111111111111'
+      and is_primary
+    group by id)
+);
+
+do $$
+begin
+  perform public.set_primary_vehicle('cccccccc-cccc-cccc-cccc-cccccccccccc');
+  perform pg_temp.record('12. missing target is rejected', 'blocked', 'allowed');
+exception
+  when others then
+    perform pg_temp.record('12. missing target is rejected', 'blocked', 'blocked');
+end $$;
+select pg_temp.act_as_admin();
+select pg_temp.record(
+  '13. failed owner promotion rolls back the primary clear',
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  (select id::text from public.vehicles
+    where owner_id = '11111111-1111-1111-1111-111111111111' and is_primary)
+);
+
+select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
+do $$
+begin
+  perform public.set_primary_vehicle('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+  perform pg_temp.record('14. stranger cannot promote another user vehicle', 'blocked', 'allowed');
+exception
+  when others then
+    perform pg_temp.record('14. stranger cannot promote another user vehicle', 'blocked', 'blocked');
+end $$;
+select pg_temp.act_as_admin();
+select pg_temp.record(
+  '15. stranger failure leaves existing primary intact',
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  (select id::text from public.vehicles
+    where owner_id = '11111111-1111-1111-1111-111111111111' and is_primary)
+);
+
+-- ===========================================================================
+-- 16. One primary vehicle per owner
 -- ===========================================================================
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 do $$
 begin
   insert into public.vehicles (owner_id, make, model, year, mileage, is_primary)
   values ('11111111-1111-1111-1111-111111111111', 'Kia', 'Sportage', 2021, 500, true);
-  perform pg_temp.record('11. second primary vehicle is rejected', 'blocked', 'allowed');
+  perform pg_temp.record('16. second primary vehicle is rejected', 'blocked', 'allowed');
 exception
   when unique_violation then
-    perform pg_temp.record('11. second primary vehicle is rejected', 'blocked', 'blocked');
+    perform pg_temp.record('16. second primary vehicle is rejected', 'blocked', 'blocked');
 end $$;
 
 select pg_temp.act_as_admin();
 
 -- ===========================================================================
--- 12. Owner can successfully add a member; member can read the vehicle
+-- 17. Owner can successfully add a member; member can read the vehicle
 -- ===========================================================================
 insert into public.vehicle_members (vehicle_id, user_id, role)
 values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -226,18 +281,18 @@ values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
 
 select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
 select pg_temp.record(
-  '12. invited member can read the shared vehicle',
+  '17. invited member can read the shared vehicle',
   '1',
   (select count(*)::text from public.vehicles where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
 );
 
 -- ===========================================================================
--- 13. A member still cannot delete or modify ownership
+-- 18. A member still cannot delete or modify ownership
 -- ===========================================================================
 delete from public.vehicles where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 select pg_temp.act_as_admin();
 select pg_temp.record(
-  '13. member cannot delete the shared vehicle',
+  '18. member cannot delete the shared vehicle',
   '1',
   (select count(*)::text from public.vehicles where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
 );
@@ -248,24 +303,24 @@ begin
   update public.vehicles
      set is_primary = true
    where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-  perform pg_temp.record('14. member cannot change vehicle settings', 'blocked', 'allowed');
+  perform pg_temp.record('19. member cannot change vehicle settings', 'blocked', 'allowed');
 exception
   when others then
-    perform pg_temp.record('14. member cannot change vehicle settings', 'blocked', 'blocked');
+    perform pg_temp.record('19. member cannot change vehicle settings', 'blocked', 'blocked');
 end $$;
 
 -- ===========================================================================
--- 15. A member cannot escalate their own role
+-- 20. A member cannot escalate their own role
 -- ===========================================================================
 do $$
 begin
   update public.vehicle_members
      set role = 'mechanic'
    where user_id = '22222222-2222-2222-2222-222222222222';
-  perform pg_temp.record('15. member cannot escalate their own role', 'blocked', 'allowed');
+  perform pg_temp.record('20. member cannot escalate their own role', 'blocked', 'allowed');
 exception
   when others then
-    perform pg_temp.record('15. member cannot escalate their own role', 'blocked', 'blocked');
+    perform pg_temp.record('20. member cannot escalate their own role', 'blocked', 'blocked');
 end $$;
 
 select pg_temp.act_as_admin();
